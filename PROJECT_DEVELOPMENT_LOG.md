@@ -239,9 +239,207 @@ Python → PyFirmata → Serial (/dev/ttyACM0) → Arduino
 
 ---
 
+## Phase 6: YouTube Music Integration - Tự động tìm và phát nhạc
+
+**Ngày:** 2025-10-07 (Buổi sáng)
+
+### 🎯 Yêu cầu mới
+User muốn hệ thống tự động:
+- Tìm kiếm nhạc trên YouTube
+- Phát nhạc qua loa/tai nghe máy tính
+- Điều khiển bằng giọng nói tự nhiên
+
+### 🔧 Triển khai
+
+#### Bước 1: Thêm YouTube Search Function
+**File:** `youtube_player.py`
+- Tạo class `YouTubePlayer` để tìm và phát nhạc
+- Ban đầu dùng `youtube-search-python` API
+- **Vấn đề:** Lỗi `post() got an unexpected keyword argument 'proxies'`
+- **Giải pháp:** Đổi sang dùng `yt-dlp` để search và lấy video ID
+
+**Code flow:**
+```python
+yt-dlp --get-id --get-title 'ytsearch1:query'
+→ Lấy video_id
+→ Tạo URL: youtube.com/watch?v={video_id}
+→ webbrowser.open(url)
+→ Nhạc phát qua browser
+```
+
+#### Bước 2: Thêm Function Definition
+**File:** `function_definitions.py`
+- Thêm function `play_youtube_music`
+- Parameters: song_name, artist, mood, genre
+- AI tự quyết định dựa trên:
+  - Tên bài cụ thể → dùng song_name/artist
+  - Tâm trạng → dùng mood (buồn, vui, thư giãn...)
+  - Thể loại → dùng genre (pop, rock, EDM...)
+
+#### Bước 3: Tích hợp vào Main
+**File:** `main.py`
+- Import `YouTubePlayer`
+- Khởi tạo instance
+- Xử lý function call `play_youtube_music`
+- Logic phân loại: bài cụ thể vs mood vs genre
+
+#### Bước 4: Xử lý Dependencies
+**Vấn đề gặp phải:**
+
+1. **ModuleNotFoundError: youtube-search-python**
+   - User đang dùng conda env `AI_Agent`
+   - Pip cài vào miniconda nhưng terminal dùng python3 khác
+   - **Fix:** Dùng `/home/holab/miniconda3/bin/python3 main.py`
+
+2. **pyfirmata lỗi với Python 3.12**
+   - Lỗi: `module 'inspect' has no attribute 'getargspec'`
+   - **Fix:** Đổi sang `pyfirmata2`
+   - Sau đó đổi lại `pyfirmata` theo yêu cầu user
+
+3. **youtube-search-python API error**
+   - Lỗi: `post() got an unexpected keyword argument 'proxies'`
+   - **Fix:** Đổi sang dùng `yt-dlp` để search
+
+**Dependencies cuối cùng:**
+```
+openai>=1.0.0
+pyfirmata>=1.1.0
+pyserial>=3.5
+youtube-search-python>=1.6.6  # Không dùng nữa
+yt-dlp  # Dùng thay thế
+```
+
+### 🎵 Tính năng Music Control
+
+#### Phân biệt 2 loại điều khiển:
+
+**1. play_youtube_music** - Tìm và mở nhạc MỚI:
+```
+"Phát bài Lạc Trôi"
+"Nghe Sơn Tùng MTP"
+"Buồn quá, bật nhạc"
+"Nhạc EDM đi"
+```
+
+**2. control_music** - Điều khiển nhạc ĐANG PHÁT:
+```
+"Tạm dừng" → pause
+"Tiếp tục" → play
+"Dừng hẳn" → stop
+"To quá" → volume_down
+```
+
+#### Vấn đề phát hiện: Resume sau Stop
+
+**Tình huống:**
+```
+User: Phát bài cause i love you
+→ YouTube mở, phát nhạc ✅
+
+User: Dừng phát
+→ Stop/đóng tab ✅
+
+User: Tiếp tục phát nhạc
+→ AI gọi control_music(play)
+→ Phát NHẦM media player khác ❌
+```
+
+**Nguyên nhân:**
+- YouTube đã đóng tab khi stop
+- `playerctl play` phát media player khác (nếu có)
+- Không thể "resume" YouTube đã đóng
+
+**Giải pháp:**
+- Cập nhật system prompt: AI hiểu rõ pause vs stop
+- "Tiếp tục" sau stop → AI nên HỎI LẠI user muốn phát bài gì
+- Chỉ dùng `control_music(play)` khi chắc chắn đang pause
+
+### 📊 Kết quả
+
+#### Tính năng hoàn thành:
+- ✅ Tự động tìm kiếm YouTube bằng `yt-dlp`
+- ✅ Mở video đầu tiên, phát qua browser
+- ✅ Hỗ trợ search theo: tên bài, ca sĩ, mood, genre
+- ✅ AI tự suy luận ý định user
+- ✅ Phân biệt rõ play mới vs điều khiển đang phát
+
+#### Demo thực tế:
+```
+Bạn: Bật đèn và phát bài cause i love you của Noo Phước Thịnh
+→ LED sáng ✅
+→ (Chưa phát nhạc - AI chưa hiểu lần đầu)
+
+Bạn: Bật nhạc đi
+→ YouTube mở "Cause I Love You - Noo Phước Thịnh" ✅
+→ Nhạc phát qua loa máy tính ✅
+
+Bạn: Tắt nhạc
+→ Dừng nhạc ✅
+
+Bạn: Tiếp tục phát nhạc
+→ Phát nhầm media khác ❌
+→ Sau fix: AI sẽ hỏi lại ✅
+```
+
+### 🐛 Issues & Solutions
+
+| Vấn đề | Giải pháp |
+|--------|-----------|
+| `youtube-search-python` lỗi API | Dùng `yt-dlp` thay thế |
+| `pyfirmata` lỗi Python 3.12 | Giữ nguyên pyfirmata, hướng dẫn user |
+| Conda env conflict | Dùng full path python |
+| Resume sau stop | Cập nhật AI logic, hỏi lại user |
+| Không điều khiển YouTube | Hướng dẫn cài `playerctl` hoặc dùng SPACE |
+
+### 🎓 Bài học Phase 6
+
+1. **YouTube API alternatives:**
+   - `youtube-search-python`: Đơn giản nhưng dễ lỗi
+   - `yt-dlp`: Ổn định, mạnh mẽ, recommended
+
+2. **Browser automation limitations:**
+   - Không thể điều khiển tab browser như native app
+   - `playerctl` cần cài thêm
+   - Fallback: Hướng dẫn user dùng keyboard
+
+3. **AI function calling edge cases:**
+   - Cần phân biệt rõ "play mới" vs "resume"
+   - System prompt cần chi tiết về context
+   - Hỏi lại user khi không chắc chắn
+
+4. **Dependency management:**
+   - Conda env vs system python
+   - Version compatibility (Python 3.12)
+   - Fallback strategies quan trọng
+
+### 💡 Hướng phát triển tiếp theo
+
+**Đã thảo luận nhưng chưa implement:**
+- [ ] Download và phát offline (dùng `YouTubeDownloader` class đã viết)
+- [ ] Play/pause bằng keyboard automation
+- [ ] Queue management (playlist)
+- [ ] Lyrics display
+- [ ] Music recommendation based on mood history
+
+**Có thể mở rộng:**
+- Multiple function calls cùng lúc ("bật đèn VÀ phát nhạc")
+- Smart home integration (Spotify, Apple Music...)
+- Voice input (speech-to-text)
+
+---
+
 ## 🙏 Ghi chú
 
 Dự án được phát triển với sự hỗ trợ của Claude Code.
 
-**Ngày hoàn thành:** 2025-10-06
+**Ngày khởi đầu:** 2025-10-06
+**Ngày cập nhật Phase 6:** 2025-10-07
 **GitHub:** https://github.com/namcao258/arduino-ai-chatbot
+
+**Tổng số Phases hoàn thành:** 6
+- Phase 1: Kiến trúc module hóa
+- Phase 2: AI Reasoning nâng cao
+- Phase 3: Context Learning
+- Phase 4: Persistent Storage
+- Phase 5: Version Control & GitHub
+- Phase 6: YouTube Music Integration ⭐ NEW

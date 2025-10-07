@@ -2,17 +2,20 @@
 Main Entry Point - Chương trình chính kết hợp Arduino và AI Chatbot
 """
 from arduino_controller import ArduinoController
+from music_controller import MusicController
+from youtube_player import YouTubePlayer
 from llm_handler import LLMHandler
 
 def print_welcome():
     """In thông tin chào mừng"""
     print("=" * 60)
-    print("🤖 AI CHATBOT THÔNG MINH - ĐIỀU KHIỂN ĐÈN ARDUINO")
+    print("🤖 AI CHATBOT THÔNG MINH - ĐIỀU KHIỂN ĐÈN & NHẠC")
     print("=" * 60)
     print("✨ AI có khả năng SUY LUẬN và HỌC từ bạn!")
     print("\nVí dụ:")
     print("  • 'Tôi sắp đọc sách' → AI hiểu cần sáng → Bật đèn")
-    print("  • 'Mệt quá, muốn ngủ' → AI hiểu cần tối → Tắt đèn")
+    print("  • 'Buồn quá' → AI hiểu cần nhạc → Bật nhạc")
+    print("  • 'Mệt quá, muốn ngủ' → AI hiểu cần tối → Tắt đèn & nhạc")
     print("  • 'Trời mưa ảm đạm' → AI hiểu cần ấm → Bật đèn")
     print("\nLệnh đặc biệt:")
     print("  • 'stats' - Xem AI đã học được gì")
@@ -34,6 +37,14 @@ def main():
             print("   2. Đã upload StandardFirmata chưa?")
             print("   3. Cổng serial đúng chưa? (kiểm tra: ls /dev/tty*)")
             return
+
+        # Khởi tạo Music Controller
+        music = MusicController()
+        print("🎵 Music Controller đã khởi tạo")
+
+        # Khởi tạo YouTube Player
+        youtube = YouTubePlayer()
+        print("📺 YouTube Player đã khởi tạo")
 
         # Khởi tạo LLM Handler
         try:
@@ -102,6 +113,62 @@ def main():
                         # Gọi lại AI để tạo response cuối cùng
                         final_response = llm.get_final_response()
                         print(f"AI: {final_response}")
+
+                    elif function_name == "control_music":
+                        action = function_args.get("action")
+                        reason = function_args.get("reason", "")
+                        result = music.control_music(action)
+
+                        print(f"🎵 {result}")
+                        if reason:
+                            print(f"💭 Lý do: {reason}")
+
+                        # Ghi nhận vào memory để học
+                        llm.record_action_to_memory(action, reason)
+
+                        # Thêm kết quả vào lịch sử
+                        llm.add_function_result(function_name, result)
+
+                        # Gọi lại AI để tạo response cuối cùng
+                        final_response = llm.get_final_response()
+                        print(f"AI: {final_response}")
+
+                    elif function_name == "play_youtube_music":
+                        song_name = function_args.get("song_name")
+                        artist = function_args.get("artist")
+                        mood = function_args.get("mood")
+                        genre = function_args.get("genre")
+                        reason = function_args.get("reason", "")
+
+                        # Xác định cách phát nhạc
+                        if song_name or artist:
+                            # Phát bài hát cụ thể
+                            result = youtube.play_specific_song(song_name or "", artist)
+                        elif mood:
+                            # Phát nhạc theo tâm trạng
+                            result = youtube.play_by_mood(mood)
+                        elif genre:
+                            # Phát nhạc theo thể loại
+                            result = youtube.play_by_genre(genre)
+                        else:
+                            # Tìm kiếm chung
+                            query = reason if reason else "popular music 2024"
+                            result = youtube.search_and_play(query)
+
+                        print(f"🎵 {result}")
+                        if reason:
+                            print(f"💭 Lý do: {reason}")
+
+                        # Ghi nhận vào memory
+                        llm.record_action_to_memory("play_youtube", reason)
+
+                        # Thêm kết quả vào lịch sử
+                        llm.add_function_result(function_name, result)
+
+                        # Gọi lại AI để tạo response cuối cùng
+                        final_response = llm.get_final_response()
+                        print(f"AI: {final_response}")
+
                     else:
                         print(f"❌ Function không xác định: {function_name}")
                 else:

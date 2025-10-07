@@ -39,11 +39,86 @@ FUNCTIONS = [
             },
             "required": ["action", "reason"]
         }
+    },
+    {
+        "name": "control_music",
+        "description": """Điều khiển phát nhạc đang phát trên máy tính (play/pause/stop/volume).
+
+        Dùng để điều khiển nhạc ĐÃ ĐANG PHÁT (Spotify, VLC, YouTube đã mở...)
+
+        VÍ DỤ:
+        - "Tạm dừng nhạc" → pause
+        - "Tắt nhạc đi" → stop
+        - "To quá" → volume_down
+        - "Nhỏ quá" → volume_up
+        """,
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["play", "pause", "stop", "volume_up", "volume_down"],
+                    "description": "Hành động điều khiển"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Lý do"
+                }
+            },
+            "required": ["action", "reason"]
+        }
+    },
+    {
+        "name": "play_youtube_music",
+        "description": """Tự động TÌM KIẾM và PHÁT nhạc mới từ YouTube.
+
+        Dùng khi người dùng muốn nghe bài hát CỤ THỂ hoặc nhạc theo TÂM TRẠNG.
+
+        VÍ DỤ TỰ SUY LUẬN:
+        - "Phát bài Lạc Trôi" → Tìm và phát bài "Lạc Trôi"
+        - "Nghe Sơn Tùng MTP" → Tìm nhạc Sơn Tùng MTP
+        - "Buồn quá, bật nhạc" → Phát nhạc buồn (mood: buồn)
+        - "Nhạc vui vẻ đi" → Phát nhạc vui (mood: vui)
+        - "Muốn thư giãn" → Phát nhạc thư giãn (mood: thư giãn)
+        - "Nhạc EDM" → Phát nhạc EDM (genre: EDM)
+
+        HÃY PHÂN BIỆT:
+        - Có tên bài/ca sĩ cụ thể → dùng song_name/artist
+        - Chỉ nói tâm trạng → dùng mood
+        - Chỉ nói thể loại → dùng genre
+        """,
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "song_name": {
+                    "type": "string",
+                    "description": "Tên bài hát (nếu có)"
+                },
+                "artist": {
+                    "type": "string",
+                    "description": "Tên ca sĩ (nếu có)"
+                },
+                "mood": {
+                    "type": "string",
+                    "enum": ["buồn", "vui", "thư giãn", "tập thể dục", "làm việc", "ngủ", "lãng mạn", "party"],
+                    "description": "Tâm trạng (nếu không có bài cụ thể)"
+                },
+                "genre": {
+                    "type": "string",
+                    "description": "Thể loại nhạc: pop, rock, jazz, EDM, classical... (nếu không có mood)"
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Lý do chọn"
+                }
+            },
+            "required": ["reason"]
+        }
     }
 ]
 
 # System prompt cho AI
-SYSTEM_PROMPT = """Bạn là trợ lý AI thông minh có khả năng SUY LUẬN và điều khiển đèn LED.
+SYSTEM_PROMPT = """Bạn là trợ lý AI thông minh có khả năng SUY LUẬN và điều khiển đèn LED + nhạc.
 
 NGUYÊN TẮC HOẠT ĐỘNG:
 🧠 HÃY SUY LUẬN THÔNG MINH như con người:
@@ -62,6 +137,28 @@ NGUYÊN TẮC HOẠT ĐỘNG:
 - Xem phim, thư giãn (thường thích tối)
 - Phàn nàn về ánh sáng (chói, mỏi mắt, đau đầu...)
 - Tiết kiệm điện khi không cần
+
+🎵 ĐIỀU KHIỂN NHẠC - QUAN TRỌNG:
+
+**2 LOẠI LỆNH KHÁC NHAU:**
+
+1. **play_youtube_music** - Tìm và MỞ nhạc MỚI:
+   - "Phát bài [tên bài]"
+   - "Nghe [ca sĩ]"
+   - "Nhạc [tâm trạng/thể loại]"
+   - Lần ĐẦU TIÊN người dùng yêu cầu bài hát
+
+2. **control_music** - Điều khiển nhạc ĐANG PHÁT:
+   - "Tạm dừng" / "Pause" → action: pause
+   - "Tiếp tục" / "Play lại" → action: play
+   - "Dừng hẳn" / "Stop" → action: stop
+   - "To quá" → action: volume_down
+   - "Nhỏ quá" → action: volume_up
+
+**LƯU Ý QUAN TRỌNG:**
+- YouTube không hỗ trợ "resume" sau khi dừng
+- "Tiếp tục phát nhạc" SAU KHI DỪNG → Nên HỎI LẠI user muốn phát bài gì
+- Chỉ dùng control_music(play) khi chắc chắn nhạc đang TẠM DỪNG (pause), chưa stop
 
 ❓ KHI KHÔNG CHẮC CHẮN:
 - Hỏi lại người dùng: "Bạn muốn tôi bật đèn không?"
