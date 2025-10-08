@@ -40,6 +40,15 @@ class MusicController:
         """Tạm dừng nhạc"""
         try:
             if self.system == "Linux":
+                # Kiểm tra trạng thái trước
+                status_result = subprocess.run(["playerctl", "status"], check=False, capture_output=True, text=True)
+                current_status = status_result.stdout.strip()
+
+                if current_status == "Paused":
+                    return "⏸️  Nhạc đã tạm dừng rồi"
+                elif current_status == "Stopped":
+                    return "⏸️  Nhạc đã dừng rồi"
+
                 # Thử playerctl trước
                 result = subprocess.run(["playerctl", "pause"], check=False, capture_output=True)
                 if result.returncode == 0:
@@ -68,6 +77,13 @@ class MusicController:
         """Dừng nhạc"""
         try:
             if self.system == "Linux":
+                # Kiểm tra trạng thái trước
+                status_result = subprocess.run(["playerctl", "status"], check=False, capture_output=True, text=True)
+                current_status = status_result.stdout.strip()
+
+                if current_status == "Stopped":
+                    return "⏹️  Nhạc đã dừng rồi"
+
                 result = subprocess.run(["playerctl", "stop"], check=False, capture_output=True)
                 if result.returncode == 0:
                     self.is_playing = False

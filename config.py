@@ -6,7 +6,7 @@ import os
 class Config:
     # OpenAI API Configuration
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-    OPENAI_MODEL = "gpt-4"  # Có thể đổi sang "gpt-3.5-turbo" để tiết kiệm
+    OPENAI_MODEL = "gpt-3.5-turbo"  # Có thể đổi sang "gpt-3.5-turbo" để tiết kiệm
 
     # Arduino Configuration
     ARDUINO_PORT = '/dev/ttyACM0'  # Linux: /dev/ttyACM0, Windows: COM3

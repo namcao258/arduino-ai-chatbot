@@ -86,12 +86,46 @@ class LLMHandler:
         # Inject context vào prompt
         self._inject_context_to_system_prompt()
 
+        # Phát hiện từ khóa điều khiển để force function call
+        user_lower = user_input.lower()
+
+        # Từ khóa TÌM KIẾM/MỞ nhạc mới (ưu tiên cao nhất)
+        play_music_keywords = ['mở bài', 'phát bài', 'bật bài', 'nghe bài', 'tìm bài', 'play bài']
+
+        # Từ khóa điều khiển nhạc đang phát (không phải tìm bài mới)
+        control_music_keywords = ['tiếp tục', 'phát tiếp', 'phát lại', 'play lại', 'pause', 'tạm dừng', 'dừng lại', 'stop', 'tắt nhạc', 'bật lại']
+
+        # Từ khóa điều khiển Otto (chỉ khi KHÔNG liên quan nhạc)
+        otto_movement_keywords = ['sang trái', 'sang phải', 'đi tới', 'đi lùi', 'chạy', 'quay', 'rẽ', 'turn', 'walk', 'moonwalk']
+        otto_emotion_keywords = ['vui vẻ', 'buồn bã', 'tức giận', 'wave', 'vẫy', 'bow', 'cúi', 'nhảy']
+
+        function_call_mode = "auto"
+
+        # Ưu tiên 1: Nếu có từ "bài hát", "nhạc", "mở bài" → play_youtube_music
+        if any(keyword in user_lower for keyword in play_music_keywords) or 'bài hát' in user_lower or ('mở' in user_lower and 'nhạc' in user_lower):
+            function_call_mode = "auto"  # Để AI tự chọn play_youtube_music
+
+        # Ưu tiên 2: Kiểm tra control_music (điều khiển nhạc đang phát)
+        elif any(keyword in user_lower for keyword in control_music_keywords):
+            words = user_lower.split()
+            if len(words) <= 3:  # Lệnh ngắn → control_music
+                function_call_mode = {"name": "control_music"}
+
+        # Ưu tiên 3: Kiểm tra control_otto (chỉ khi rõ ràng là lệnh Otto)
+        elif any(keyword in user_lower for keyword in otto_movement_keywords):
+            function_call_mode = {"name": "control_otto"}
+        elif any(keyword in user_lower for keyword in otto_emotion_keywords):
+            # Chỉ force nếu KHÔNG có từ liên quan nhạc
+            if 'nhạc' not in user_lower and 'bài' not in user_lower and 'hát' not in user_lower:
+                function_call_mode = {"name": "control_otto"}
+
         try:
+            # Nếu có từ khóa điều khiển → bắt buộc gọi function
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=self.conversation_history,
                 functions=FUNCTIONS,
-                function_call="auto"
+                function_call=function_call_mode
             )
 
             message = response.choices[0].message
@@ -99,7 +133,21 @@ class LLMHandler:
             # Kiểm tra xem AI có muốn gọi function không
             if message.function_call:
                 function_name = message.function_call.name
-                function_args = json.loads(message.function_call.arguments)
+
+                # Parse arguments với error handling
+                try:
+                    function_args = json.loads(message.function_call.arguments)
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ JSON parse error: {e}")
+                    print(f"Raw arguments: {message.function_call.arguments}")
+                    # Thử fix các ký tự đặc biệt
+                    import re
+                    fixed_args = message.function_call.arguments.replace('\n', '\\n').replace('\r', '\\r')
+                    try:
+                        function_args = json.loads(fixed_args)
+                    except:
+                        # Fallback - trả về empty dict
+                        function_args = {"reason": "Không thể parse arguments"}
 
                 return {
                     "needs_function_call": True,
@@ -108,8 +156,23 @@ class LLMHandler:
                     "message": None
                 }
             else:
-                # AI trả lời bình thường
+                # AI trả lời bình thường - Text response (KHÔNG NÊN XẢY RA với lệnh điều khiển)
                 ai_response = message.content
+
+                # Cảnh báo nếu có từ khóa lệnh điều khiển mà không gọi function
+                control_keywords = ['tiếp tục', 'phát', 'pause', 'tạm dừng', 'dừng', 'play', 'stop',
+                                   'sang trái', 'sang phải', 'đi', 'chạy', 'nhảy', 'quay', 'rẽ',
+                                   'bật nhạc', 'tắt nhạc', 'bật', 'tắt']
+                user_lower = self.current_user_input.lower() if self.current_user_input else ""
+
+                if any(keyword in user_lower for keyword in control_keywords):
+                    warning = f"\n⚠️ BẠN ĐÃ NÊU LỆNH ĐIỀU KHIỂN NHƯNG CHƯA GỌI FUNCTION! User: '{self.current_user_input}'"
+                    ai_response = ai_response + warning
+
+                # Post-processing: Loại bỏ câu hỏi
+                if '?' in ai_response or 'muốn' in ai_response.lower() or 'cần' in ai_response.lower() or 'tiếp theo' in ai_response.lower():
+                    ai_response = "OK! 🤖"
+
                 self.add_assistant_message(ai_response)
 
                 return {
@@ -141,6 +204,12 @@ class LLMHandler:
             )
 
             final_message = response.choices[0].message.content
+
+            # Post-processing: Loại bỏ câu hỏi nếu có
+            if '?' in final_message or 'muốn' in final_message.lower() or 'cần' in final_message.lower() or 'tiếp theo' in final_message.lower():
+                # Nếu AI hỏi lại, rút ngắn thành OK
+                final_message = "OK! 🤖"
+
             self.add_assistant_message(final_message)
 
             return final_message
